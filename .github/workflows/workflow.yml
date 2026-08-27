@@ -1,0 +1,60 @@
+name: Build and Push Album API to ACR
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - albums-api/**
+      - .github/workflows/workflow.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  ACR_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY }}
+  IMAGE_NAME: albums-api
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create or locate container registry
+        id: registry
+        env:
+          RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          LOCATION: ${{ vars.AZURE_LOCATION }}
+        run: |
+          if ! az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" > /dev/null 2>&1; then
+            az acr create \
+              --name "$ACR_NAME" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "${LOCATION:-eastus}" \
+              --sku Basic
+          fi
+          echo "login-server=$(az acr show --name "$ACR_NAME" --resource-group "$RESOURCE_GROUP" --query loginServer --output tsv)" >> "$GITHUB_OUTPUT"
+
+      - name: Sign in to ACR
+        run: az acr login --name "$ACR_NAME"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: albums-api
+          push: true
+          tags: |
+            ${{ steps.registry.outputs.login-server }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+            ${{ steps.registry.outputs.login-server }}/${{ env.IMAGE_NAME }}:latest
+
+

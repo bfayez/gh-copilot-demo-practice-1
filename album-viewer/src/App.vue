@@ -16,27 +16,44 @@
         <button @click="fetchAlbums" class="retry-btn">Try Again</button>
       </div>
 
-      <div v-else class="albums-grid">
-        <AlbumCard 
-          v-for="album in albums" 
-          :key="album.id" 
-          :album="album" 
-        />
+      <div v-else>
+        <section v-if="albums.length" class="price-chart-section">
+          <h2>Price comparison</h2>
+          <div ref="priceChart" class="price-chart"></div>
+        </section>
+
+        <div class="albums-grid">
+          <AlbumCard
+            v-for="album in albums"
+            :key="album.id"
+            :album="album"
+          />
+        </div>
       </div>
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import axios from 'axios'
 import AlbumCard from './components/AlbumCard.vue'
 import type { Album } from './types/album'
+import { renderAlbumPriceChart } from './utils/viz'
 
 const albums = ref<Album[]>([])
 const loading = ref<boolean>(true)
 const error = ref<string | null>(null)
+const priceChart = ref<HTMLElement | null>(null)
+let resizeObserver: ResizeObserver | undefined
 
+const drawPriceChart = (): void => {
+  if (priceChart.value) {
+    renderAlbumPriceChart(priceChart.value, albums.value)
+  }
+}
+
+// Function to fetch albums from the API
 const fetchAlbums = async (): Promise<void> => {
   try {
     loading.value = true
@@ -49,11 +66,20 @@ const fetchAlbums = async (): Promise<void> => {
   } finally {
     loading.value = false
   }
+
+  await nextTick()
+  drawPriceChart()
+  if (priceChart.value) {
+    resizeObserver?.observe(priceChart.value)
+  }
 }
 
 onMounted(() => {
+  resizeObserver = new ResizeObserver(drawPriceChart)
   fetchAlbums()
 })
+
+onBeforeUnmount(() => resizeObserver?.disconnect())
 </script>
 
 <style scoped>
@@ -82,6 +108,30 @@ onMounted(() => {
 .main {
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.price-chart-section {
+  margin: 0 1rem 2rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+}
+
+.price-chart-section h2 {
+  margin: 0 0 0.75rem;
+  color: #222;
+  font-size: 1.25rem;
+}
+
+.price-chart {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.price-chart :deep(svg) {
+  display: block;
+  min-width: 560px;
+  font-family: inherit;
 }
 
 .loading {

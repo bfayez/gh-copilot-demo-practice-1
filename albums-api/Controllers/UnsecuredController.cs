@@ -1,58 +1,55 @@
 using Microsoft.Data.SqlClient;
 using System.Data;
-using System.Runtime.Serialization.Formatters.Binary;
-using System.Text;
 
 namespace UnsecureApp.Controllers
 {
-    public class MyController
+    public sealed class MyController
     {
+        private readonly string allowedDirectory;
+        private readonly string connectionString;
+
+        public MyController(string allowedDirectory, string connectionString)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(allowedDirectory);
+            ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+
+            this.allowedDirectory = Path.GetFullPath(allowedDirectory);
+            this.connectionString = connectionString;
+        }
 
         public string ReadFile(string userInput)
         {
-            using (FileStream fs = File.Open(userInput, FileMode.Open))
-            {
-                byte[] b = new byte[1024];
-                UTF8Encoding temp = new UTF8Encoding(true);
+            ArgumentException.ThrowIfNullOrWhiteSpace(userInput);
 
-                while (fs.Read(b, 0, b.Length) > 0)
-                {
-                    return temp.GetString(b);
-                }
+            var filePath = Path.GetFullPath(userInput, allowedDirectory);
+            var relativePath = Path.GetRelativePath(allowedDirectory, filePath);
+            if (relativePath == ".." || relativePath.StartsWith($"..{Path.DirectorySeparatorChar}"))
+            {
+                throw new UnauthorizedAccessException("The requested file is outside the allowed directory.");
             }
 
-            return null;
+            return File.ReadAllText(filePath);
         }
 
         public int GetProduct(string productName)
         {
-            using (SqlConnection connection = new SqlConnection(connectionString))
-            {
-                SqlCommand sqlCommand = new SqlCommand()
-                {
-                    CommandText = "SELECT ProductId FROM Products WHERE ProductName = '" + productName + "'",
-                    CommandType = CommandType.Text,
-                };
+            ArgumentException.ThrowIfNullOrWhiteSpace(productName);
 
-                SqlDataReader reader = sqlCommand.ExecuteReader();
-                return reader.GetInt32(0); 
+            using var connection = new SqlConnection(connectionString);
+            using var sqlCommand = new SqlCommand(
+                "SELECT ProductId FROM Products WHERE ProductName = @productName",
+                connection);
+            sqlCommand.CommandType = CommandType.Text;
+            sqlCommand.Parameters.Add("@productName", SqlDbType.NVarChar, 200).Value = productName;
+
+            connection.Open();
+            var productId = sqlCommand.ExecuteScalar();
+            if (productId is null || productId == DBNull.Value)
+            {
+                throw new KeyNotFoundException($"No product named '{productName}' was found.");
             }
+
+            return Convert.ToInt32(productId);
         }
-
-        public void GetObject()
-        {
-            try
-            {
-                object o = null;
-                o.ToString();
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e.ToString());
-            }
-        
-        }
-
-        private string connectionString = "";
     }
 }

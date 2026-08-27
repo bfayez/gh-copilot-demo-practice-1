@@ -7,12 +7,9 @@ param appInsightsName string = 'appinsights-${uniqueSuffix}'
 param storageAccountName string = 'storage${replace(uniqueSuffix, '-', '')}'
 param blobContainerName string = 'albums'
 param registryName string
-@secure()
-param registryPassword string
-
-param registryUsername string
 param apiImage string
 param viewerImage string
+param openAiAccountName string = 'openai-${uniqueSuffix}'
 
 
 // Log analytics and App Insights for visibility 
@@ -60,6 +57,35 @@ resource blobContainer 'Microsoft.Storage/storageAccounts/blobServices/container
   name: blobContainerName
 }
 
+resource containerRegistry 'Microsoft.ContainerRegistry/registries@2023-07-01' = {
+  name: registryName
+  location: location
+  sku: {
+    name: 'Basic'
+  }
+  properties: {
+    adminUserEnabled: true
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource openAiAccount 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+  name: openAiAccountName
+  location: location
+  kind: 'OpenAI'
+  identity: {
+    type: 'SystemAssigned'
+  }
+  sku: {
+    name: 'S0'
+  }
+  properties: {
+    customSubDomainName: openAiAccountName
+    disableLocalAuth: true
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
 // Container Apps environment 
 resource containerAppsEnv 'Microsoft.App/managedEnvironments@2022-03-01' = {
   name: containerAppsEnvName
@@ -99,8 +125,8 @@ module albumViewerCapp 'modules/container-app.bicep' = {
     location: location
     containerAppsEnvName: containerAppsEnvName
     appName: 'album-viewer'
-    registryPassword: registryPassword
-    registryUsername: registryUsername
+    registryPassword: containerRegistry.listCredentials().passwords[0].value
+    registryUsername: containerRegistry.listCredentials().username
     containerImage: viewerImage
     httpPort: 3000
     registryServer: registryName
@@ -116,8 +142,8 @@ module albumServiceCapp 'modules/container-app.bicep' = {
     location: location
     containerAppsEnvName: containerAppsEnvName
     appName: 'album-api'
-    registryPassword: registryPassword
-    registryUsername: registryUsername
+    registryPassword: containerRegistry.listCredentials().passwords[0].value
+    registryUsername: containerRegistry.listCredentials().username
     containerImage: apiImage
     httpPort: 80
     registryServer: registryName
@@ -128,4 +154,7 @@ output env array=[
   'Environment name: ${containerAppsEnv.name}'
   'Storage account name: ${storageAccount.name}'
   'Storage container name: ${blobContainer.name}'
+  'Container registry: ${containerRegistry.properties.loginServer}'
+  'Azure OpenAI endpoint: ${openAiAccount.properties.endpoint}'
 ]
+
