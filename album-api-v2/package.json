@@ -1,0 +1,21 @@
+{
+  "name": "album-api-v2",
+  "version": "1.0.0",
+  "description": "TypeScript Node.js API to manage music albums",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2",
+    "vitest": "^4.1.11"
+  }
+}
