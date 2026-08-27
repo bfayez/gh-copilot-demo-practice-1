@@ -3,9 +3,22 @@
     <header class="header">
       <h1>🎵 Album Collection</h1>
       <p>Discover amazing music albums</p>
+      <button @click="showCart = !showCart" class="cart-btn">
+        Cart ({{ cart.length }})
+      </button>
     </header>
 
     <main class="main">
+      <section v-if="showCart" class="cart">
+        <h2>Shopping Cart</h2>
+        <p v-if="cart.length === 0">Your cart is empty.</p>
+        <ul v-else>
+          <li v-for="album in cart" :key="album.id">
+            {{ album.title }} — ${{ album.price.toFixed(2) }}
+          </li>
+        </ul>
+      </section>
+
       <div v-if="loading" class="loading">
         <div class="spinner"></div>
         <p>Loading albums...</p>
@@ -20,7 +33,8 @@
         <AlbumCard 
           v-for="album in albums" 
           :key="album.id" 
-          :album="album" 
+          :album="album"
+          @add-to-cart="addToCart"
         />
       </div>
     </main>
@@ -34,8 +48,14 @@ import AlbumCard from './components/AlbumCard.vue'
 import type { Album } from './types/album'
 
 const albums = ref<Album[]>([])
+const cart = ref<Album[]>([])
 const loading = ref<boolean>(true)
 const error = ref<string | null>(null)
+const showCart = ref<boolean>(false)
+
+const addToCart = (album: Album): void => {
+  cart.value.push(album)
+}
 
 const fetchAlbums = async (): Promise<void> => {
   try {
@@ -79,9 +99,33 @@ onMounted(() => {
   opacity: 0.9;
 }
 
+.cart-btn {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: 2px solid white;
+  padding: 0.5rem 1rem;
+  border-radius: 25px;
+  cursor: pointer;
+}
+
 .main {
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.cart {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+}
+
+.cart h2 {
+  margin-top: 0;
+}
+
+.cart ul {
+  margin-bottom: 0;
 }
 
 .loading {
